@@ -11,6 +11,7 @@ import (
 )
 
 var users *common.AtomicMap
+var chatHistory *ChatHistory
 
 const (
 	maxUsers = 20
@@ -64,6 +65,8 @@ func handleClient(conn *common.AtomicConn) {
 
 func main() {
 	fmt.Fprintln(os.Stdout, "Chatroom server starting up...")
+
+	chatHistory := NewChatHistory("chathistory.txt")
 
 	users = common.NewAtomicMap()
 	userCount := 0

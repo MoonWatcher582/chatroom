@@ -62,7 +62,7 @@ func writeInput(conn *net.Conn, done chan bool) {
 			// Disconnect from server
 			done <- true
 		default:
-			fmt.Fprint(*conn, in)
+			fmt.Fprintln(*conn, in)
 		}
 	}
 }
@@ -70,8 +70,7 @@ func writeInput(conn *net.Conn, done chan bool) {
 func readMsg(conn *net.Conn, done chan bool) {
 	scanner := bufio.NewScanner(*conn)
 	for scanner.Scan() {
-		msg := scanner.Text()
-		fmt.Fprintln(os.Stdout, msg)
+		fmt.Fprintln(os.Stdout, scanner.Text())
 	}
 
 	fmt.Fprintln(os.Stderr, "Disconnected from server")
@@ -99,7 +98,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(conn, *username+"\n")
+	fmt.Fprintln(conn, *username)
 
 	resp, err := bufio.NewReader(conn).ReadString('\n')
 	if err != nil {

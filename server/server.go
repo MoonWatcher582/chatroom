@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/MoonWatcher582/chatroom/common"
 )
@@ -41,9 +42,20 @@ func listAllUsers(conn *common.AtomicConn) {
 	conn.Write(allUsers)
 }
 
+func sendToAll(conn *common.AtomicConn, msg string) {
+	for _, k := range users.Keys() {
+		u := users.Get(k)
+		if u.Name != conn.Name {
+			u.Write(msg)
+		}
+	}
+}
+
 func handleClient(conn *common.AtomicConn) {
 	go conn.Start()
 	go conn.ReadLoop()
+
+	chatHistory.ReadAll(conn)
 	// @TODO Put chathistory through conn.Write
 	for {
 		msg := conn.Read()
@@ -51,22 +63,28 @@ func handleClient(conn *common.AtomicConn) {
 		case "ls":
 			conn.Write("Users in chat:\n")
 			listAllUsers(conn)
+		case "private":
+			break
+		case "end":
+			break
 		case "quit":
 			users.Remove(conn.Name)
 			conn.Close()
 			break
 		default:
-			// @TODO If user sends new message, write to chat history
-			fmt.Fprintln(os.Stdout, msg)
+			msg = fmt.Sprintf("%s%s says: %s\x1b[0m", conn.Color, conn.Name, msg)
+			chatHistory.Write(conn, msg)
+			sendToAll(conn, msg)
 		}
 	}
-	// @TODO If new message is written to chat history that isn't by the user, write to user
 }
 
 func main() {
 	fmt.Fprintln(os.Stdout, "Chatroom server starting up...")
 
-	chatHistory := NewChatHistory("chathistory.txt")
+	var err error
+	chatHistory, err = NewChatHistory("chathistory.txt")
+	go chatHistory.Start()
 
 	users = common.NewAtomicMap()
 	userCount := 0
@@ -79,14 +97,13 @@ func main() {
 
 	for {
 		conn, err := ln.Accept()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Unsuccessfully tried to accept connection:", err)
+			continue
+		}
 		if userCount >= maxUsers {
 			fmt.Fprintln(os.Stderr, "Sorry, chatroom is currently full.")
 			fmt.Fprintln(conn, "full")
-			continue
-		}
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Unsuccessfully tried to accept connection:", err)
-			fmt.Fprintln(conn, "failed")
 			continue
 		}
 
@@ -96,14 +113,20 @@ func main() {
 			fmt.Fprintln(conn, "failed")
 			continue
 		}
+		username = strings.Trim(username, "\n")
 
-		fmt.Fprintln(conn, "success")
+		//if users.Get(username) != nil {
+		//	fmt.Fprintln(os.Stdout, "User "+username+" already exists!")
+		//	fmt.Fprintln(conn, "A user already exists with that name!")
+		//	continue
+		//}
 
 		atconn := common.NewAtomicConn(conn, username)
 		users.Set(username, atconn)
+		fmt.Fprintln(conn, "success")
 		userCount++
 
-		fmt.Fprint(os.Stdout, "Successfully accepted connection. Serving new user ", username)
+		fmt.Fprintln(os.Stdout, "Successfully accepted connection. Serving new user ", username)
 		go handleClient(atconn)
 	}
 }
